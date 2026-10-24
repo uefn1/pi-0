@@ -1,8 +1,8 @@
 {
   "total_digits": 0,
-  "status": "idle",
+  "status": "running",
   "last_file": null,
   "total_files": 0,
-  "last_updated": "2026-01-01T00:00:00Z",
-  "run_id": null
+  "last_updated": "2026-10-24T06:32:00.860913+00:00",
+  "run_id": "40070566647"
 }
