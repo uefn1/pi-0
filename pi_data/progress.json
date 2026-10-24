@@ -1,9 +1,9 @@
 {
   "total_digits": 0,
-  "status": "idle",
+  "status": "running",
   "last_file": null,
   "total_files": 0,
-  "last_updated": "2026-01-01T00:00:00Z",
-  "run_id": null,
-  "run_number": null
+  "last_updated": "2026-10-24T06:48:48.404378+00:00",
+  "run_id": "40071669495",
+  "run_number": "7"
 }
