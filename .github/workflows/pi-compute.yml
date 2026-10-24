@@ -12,14 +12,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Fix git rebase error
+        run: |
+          git config --global pull.rebase true
+          git config --global rebase.autoStash true
+          git config user.name "pi-bot"
+          git config user.email "pi-bot@github.actions"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - run: pip install -r requirements.txt
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Show current progress CLI
+        run: |
+          echo "=== CURRENT PROGRESS ==="
+          cat pi_data/progress.json | jq . || echo "No progress yet"
+          cat pi_data/index.json | jq . || echo "No index yet"
+          echo "========================="
 
       - name: Mark as running
         run: |
@@ -28,27 +45,36 @@ jobs:
           from pathlib import Path
           p=Path('pi_data/progress.json')
           d=json.loads(p.read_text()) if p.exists() else {}
-          d.update({'status':'running','last_updated':datetime.datetime.now(datetime.timezone.utc).isoformat(),'run_id':'${{ github.run_id }}'})
+          d.update({
+            'status':'running',
+            'last_updated':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'run_id':'${{ github.run_id }}',
+            'run_number':'${{ github.run_number }}'
+          })
           p.parent.mkdir(exist_ok=True)
           p.write_text(json.dumps(d, indent=2, ensure_ascii=False))
+          print(f'[CLI] Status -> running (run ${{ github.run_number }})')
           "
-          git config user.name "pi-bot"
-          git config user.email "pi-bot@github.actions"
           git add pi_data/progress.json
-          git commit -m "progress: running" || true
+          git commit -m "progress: running #${{ github.run_number }}" || true
           git push || true
 
-      - name: Compute next 100k
+      - name: Compute next 100k with CLI progress
         run: python compute_pi.py
+
+      - name: Show after compute
+        run: |
+          echo "=== AFTER COMPUTE ==="
+          cat pi_data/progress.json | jq .
+          ls -lh pi_data/ | tail -n 10
+          echo "====================="
 
       - name: Commit results
         run: |
-          git config user.name "pi-bot"
-          git config user.email "pi-bot@github.actions"
-          git pull --rebase origin main
           git add pi_data/
-          git commit -m "pi: $(cat pi_data/index.json | jq -c .) $(cat pi_data/progress.json | jq -c .status)" || exit 0
-          git push
+          git pull --rebase --autostash origin main || true
+          git commit -m "pi: $(jq -c . pi_data/index.json) - $(jq -c .status pi_data/progress.json) #${{ github.run_number }}" || echo "No changes"
+          git push || true
 
       - name: Update progress to waiting_next BEFORE exit
         if: always()
@@ -61,8 +87,10 @@ jobs:
           d['status']='waiting_next'
           d['last_updated']=datetime.datetime.now(datetime.timezone.utc).isoformat()
           p.write_text(json.dumps(d, indent=2, ensure_ascii=False))
+          print(f'[CLI] Status -> waiting_next, total={d.get(\"total_digits\")} digits')
           "
           git add pi_data/progress.json
+          git pull --rebase --autostash origin main || true
           git commit -m "progress: waiting_next" || true
           git push || true
 
@@ -71,6 +99,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Triggering next infinite run..."
+          echo "[CLI] Triggering next infinite run..."
           gh workflow run pi-compute.yml
-          echo "Triggered. This run will now exit."
+          echo "[CLI] Triggered. Current process will now exit."
