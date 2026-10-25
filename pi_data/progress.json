@@ -1,11 +1,11 @@
 {
   "total_digits": 17900000,
-  "status": "waiting_next",
+  "status": "running",
   "last_file": "pi_17800000-17899999.txt",
   "total_files": 179,
-  "last_updated": "2026-10-25T01:29:20.526001+00:00",
-  "run_id": "40150781508",
-  "run_number": "228",
+  "last_updated": "2026-10-25T01:29:31.221448+00:00",
+  "run_id": "40150818916",
+  "run_number": "229",
   "next_range": "17800000-17899999",
   "iter": "52500/57152",
   "percent": "91.9%"
