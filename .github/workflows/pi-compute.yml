@@ -1,4 +1,124 @@
+name: pi-compute-infinite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   compute:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 30 -> 360 (最大6時間)
+    timeout-minutes: 360  # 30m -> 6時間最大に延長
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix git config for rebase
+        run: |
+          git config --global pull.rebase true
+          git config --global rebase.autoStash true
+          git config user.name "pi-bot"
+          git config user.email "pi-bot@github.actions"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Show current progress (CLI)
+        run: |
+          echo "=== CURRENT PROGRESS ==="
+          echo "index.json:"
+          cat pi_data/index.json 2>/dev/null | jq . || echo "not found"
+          echo "progress.json:"
+          cat pi_data/progress.json 2>/dev/null | jq . || echo "not found"
+          echo "files:"
+          ls -lh pi_data/ 2>/dev/null | tail -n 20 || echo "no pi_data"
+          echo "========================"
+
+      - name: Mark as running
+        run: |
+          python -c "
+          import json, datetime
+          from pathlib import Path
+          p=Path('pi_data/progress.json')
+          d=json.loads(p.read_text()) if p.exists() else {}
+          d.update({
+            'total_digits': json.loads(Path('pi_data/index.json').read_text()).get('total_digits',0) if Path('pi_data/index.json').exists() else 0,
+            'status':'running',
+            'last_updated':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'run_id':'${{ github.run_id }}',
+            'run_number':'${{ github.run_number }}'
+          })
+          p.parent.mkdir(exist_ok=True)
+          p.write_text(json.dumps(d, indent=2, ensure_ascii=False))
+          print(f'[CLI] -> running #{d[\"run_number\"]} total={d[\"total_digits\"]}')
+          "
+          git add pi_data/progress.json
+          git commit -m "progress: running #${{ github.run_number }}" || true
+          git push || true
+
+      - name: Compute next 100k with CLI progress (FAST BS)
+        run: python compute_pi.py
+
+      - name: Show after compute
+        run: |
+          echo "=== AFTER COMPUTE ==="
+          cat pi_data/progress.json | jq .
+          cat pi_data/index.json | jq .
+          ls -lh pi_data/*.txt | tail -n 5
+          echo "Preview:"
+          head -c 100 pi_data/pi_*.txt | tail -c 50 || true
+          echo ""
+          echo "====================="
+
+      - name: Commit results (fix unstaged error)
+        run: |
+          # 全変更をステージしてからpull
+          git add pi_data/
+          git pull --rebase --autostash origin main || {
+            echo "Pull failed, trying stash"
+            git stash push -m "temp" --include-untracked || true
+            git pull --rebase origin main || true
+            git stash pop || true
+            git add pi_data/
+          }
+          git commit -m "pi: $(jq -c . pi_data/index.json) $(jq -c .status pi_data/progress.json) #${{ github.run_number }}" || echo "No changes to commit"
+          git push || true
+
+      - name: Update progress to waiting_next BEFORE exit
+        if: always()
+        run: |
+          python -c "
+          import json, datetime
+          from pathlib import Path
+          p=Path('pi_data/progress.json')
+          if p.exists():
+            d=json.loads(p.read_text())
+            d['status']='waiting_next'
+            d['last_updated']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+            p.write_text(json.dumps(d, indent=2, ensure_ascii=False))
+            print(f'[CLI] -> waiting_next total={d.get(\"total_digits\")}')
+          "
+          git add pi_data/progress.json
+          git pull --rebase --autostash origin main || true
+          git commit -m "progress: waiting_next #${{ github.run_number }}" || true
+          git push || true
+
+      - name: Trigger next run and terminate current
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "[CLI] Triggering next infinite run..."
+          gh workflow run pi-compute.yml || gh workflow run pi-compute-infinite.yml || echo "trigger failed"
+          echo "[CLI] Next run triggered. Current process will exit now."
