@@ -3,9 +3,9 @@
   "status": "running",
   "last_file": "pi_00600001-00700000.txt",
   "total_files": 7,
-  "last_updated": "2026-10-24T23:55:11.957818+00:00",
-  "run_id": "40144642484",
-  "run_number": "45",
+  "last_updated": "2026-10-25T00:24:12.198652+00:00",
+  "run_id": "40146539124",
+  "run_number": "48",
   "next_range": "700001-800000",
   "iter": "52500/57152",
   "percent": "91.9%"
