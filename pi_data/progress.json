@@ -1,9 +1,9 @@
 {
   "total_digits": 57900000,
-  "status": "computed",
+  "status": "waiting_next",
   "last_file": "pi_57800000-57899999.txt",
   "total_files": 579,
-  "last_updated": "2026-10-25T07:45:26.305969+00:00",
+  "last_updated": "2026-10-25T07:45:28.031029+00:00",
   "run_id": "40173909297",
   "run_number": "628",
   "next_range": "57800000-57899999",
